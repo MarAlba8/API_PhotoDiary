@@ -1,74 +1,28 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
-	"net/http"
-
+	"PhotoDiary/driver"
+	"PhotoDiary/models"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"log"
+	"net/http"
 )
 
-const (
-	username = "root"
-	password = ""
-	hostname = "127.0.0.1:3306"
-	dbname   = "db"
-)
+var DB = driver.InitDatabase()
 
-var db = initDb()
+func MainHandler(c *gin.Context) {
+	var currentAccount models.Account
+	var accounts []models.Account
 
-func dsn(dbName string) string {
-	//username:password@protocol(address)/dbname?param=value
-	return fmt.Sprintf("%s:%s@tcp(%s)/%s", username, password, hostname, dbName)
-}
-
-func initDb() *sql.DB {
-	dsn := dsn("db")
-	db, err := sql.Open("mysql", dsn)
-	if err == nil {
-		return db
-	}
-	return nil
-}
-
-type account struct {
-	ID             string `json:"id"`
-	Nickname       string `json:"nickname"`
-	Password       string `json:"password"`
-	ProfilePicture string `json:"profilepicture"`
-	idUser         string `json:"iduser"`
-}
-
-var accounts = []account{
-	{
-		ID:             "1",
-		Nickname:       "Andre1",
-		Password:       "****",
-		ProfilePicture: "www.picture.com",
-	},
-	{
-		ID:             "2",
-		Nickname:       "jose1",
-		Password:       "****",
-		ProfilePicture: "www.picture2.com",
-	},
-}
-
-var count = len(accounts)
-
-func mainHandler(c *gin.Context) {
-	var currentAccount account
-	var accounts []account
-
-	rows, err := db.Query("SELECT * FROM account;")
+	rows, err := DB.Query("SELECT * FROM account;")
 	if err != nil {
 		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error getting data"})
 		return
 	}
 
 	for rows.Next() {
-		err := rows.Scan(&currentAccount.ID, &currentAccount.Nickname, &currentAccount.Password, &currentAccount.ProfilePicture, &currentAccount.idUser)
+		err := rows.Scan(&currentAccount.ID, &currentAccount.Nickname, &currentAccount.Password, &currentAccount.ProfilePicture, &currentAccount.Username, &currentAccount.Email)
 		if err != nil {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error getting data"})
 			return
@@ -79,70 +33,80 @@ func mainHandler(c *gin.Context) {
 
 }
 
-func loginHandler(c *gin.Context) {
-	values := c.Request.URL.Query()
-	nickname := values["nickname"][0]
-	password := values["password"][0]
+func LoginHandler(c *gin.Context) {
+	var receiveData models.Account
+	var savedData models.Account
 
-	for _, data := range accounts {
-		if data.Nickname == nickname && (data.Password) == password {
-			c.IndentedJSON(http.StatusOK, data)
-			return
-		}
+	if err := c.BindJSON(&receiveData); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Error reading data"})
+		return
 	}
 
+	err := DB.QueryRow("SELECT * FROM account WHERE account.nickname = ?", receiveData.Nickname).Scan(&savedData.ID, &savedData.Nickname, &savedData.Password, &savedData.ProfilePicture, &savedData.Username, &savedData.Email)
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "User not found"})
+		return
+	}
+
+	if savedData.Password == receiveData.Password {
+		c.IndentedJSON(http.StatusOK, savedData)
+		return
+	}
 	c.IndentedJSON(http.StatusUnauthorized, gin.H{"message": "User not found"})
 }
 
-func registerHandler(c *gin.Context) {
-	var newAccount account
+func RegisterHandler(c *gin.Context) {
+	var newAccount models.Account
 	if err := c.BindJSON(&newAccount); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Error reading data"})
 		return
 	}
-	count += 1
-	newAccount.ID = fmt.Sprint(count)
-	accounts = append(accounts, newAccount)
-	c.IndentedJSON(http.StatusAccepted, "User registered")
-}
 
-func profileHandler(c *gin.Context) {
-	id := c.Param("id")
-
-	for _, data := range accounts {
-		if data.ID == id {
-			c.IndentedJSON(http.StatusOK, data)
-			return
-		}
+	err := DB.QueryRow("INSERT INTO account (nickname, password, profilePicture, username, email) VALUES (?,?,?,?,?)", newAccount.Nickname, newAccount.Password, newAccount.ProfilePicture, newAccount.Username, newAccount.Email)
+	if err.Err() != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error saving data"})
+		return
 	}
-	c.IndentedJSON(http.StatusUnauthorized, gin.H{"message": "User data not found"})
+	c.IndentedJSON(http.StatusOK, gin.H{"message": "User registered"})
 }
 
-func updateAccountHandler(c *gin.Context) {
-	var newData account
+func ProfileHandler(c *gin.Context) {
+	id := c.Param("id")
+	var currentAccount models.Account
+
+	err := DB.QueryRow("SELECT * FROM account WHERE account.id = ?", id).Scan(&currentAccount.ID, &currentAccount.Username, &currentAccount.Password, &currentAccount.ProfilePicture, &currentAccount.Nickname, &currentAccount.Email)
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "User data not found"})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, currentAccount)
+
+}
+
+func UpdateAccountHandler(c *gin.Context) {
+	var newData models.Account
 	if err := c.BindJSON(&newData); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Wrong data"})
 		return
 	}
 
-	for i, account := range accounts {
-		if newData.ID == account.ID {
-			accounts[i] = newData
-			c.IndentedJSON(http.StatusOK, newData)
-			return
-		}
+	err := DB.QueryRow("UPDATE account SET account.username=?, account.password=?, account.profilePicture=? WHERE account.id =? ", newData.Username, newData.Password, newData.ProfilePicture, newData.ID)
+	if err.Err() != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error while saving data"})
+		return
 	}
+	c.IndentedJSON(http.StatusOK, gin.H{"message": "Account updated"})
 }
 
 func main() {
-	defer db.Close()
+	defer DB.Close()
 
 	router := gin.Default()
-	router.GET("/", mainHandler)
-	router.GET("/profile/:id", profileHandler)
-	router.POST("/login", loginHandler)
-	router.POST("/register", registerHandler)
-	router.PUT("/updateAccount", updateAccountHandler)
+	router.GET("/", MainHandler)
+	router.GET("/profile/:id", ProfileHandler)
+	router.POST("/login", LoginHandler)
+	router.POST("/register", RegisterHandler)
+	router.PUT("/updateaccount", UpdateAccountHandler)
 
-	router.Run("localhost:8080")
+	log.Fatal(router.Run("localhost:8080"))
 }
