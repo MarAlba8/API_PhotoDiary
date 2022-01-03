@@ -15,8 +15,18 @@ func LoadService(rep Repository) *Service {
 	}
 }
 
-func (serv *Service) Register(account models.Account) (err error) {
-	err = serv.Repository.Insert(account)
+func (serv *Service) Register(userData models.Credentials) (err error) {
+
+	if userData.Nickname == "" || userData.Email == "" || userData.Username == "" || userData.Password == "" {
+		return errors.New("Wrong data")
+	}
+
+	userRegistered, err := serv.IsUserRegistered(userData)
+	if userRegistered {
+		return err
+	}
+
+	err = serv.Repository.Insert(userData)
 	if err != nil {
 		return err
 	}
@@ -24,7 +34,7 @@ func (serv *Service) Register(account models.Account) (err error) {
 }
 
 func (serv *Service) Login(account models.Account) (err error) {
-	savedAccount, err := serv.Repository.GetAccountByNickname(account.Nickname)
+	savedAccount, err := serv.Repository.GetAccount(account.Nickname)
 	if err != nil {
 		return errors.New("wrong Nickname")
 	}
@@ -34,7 +44,7 @@ func (serv *Service) Login(account models.Account) (err error) {
 	return errors.New("wrong Password")
 }
 
-func (serv *Service) Update(account models.Account) (err error) {
+func (serv *Service) Update(account models.UpdateCredentials) (err error) {
 	err = serv.Repository.Update(account)
 	if err != nil {
 		return errors.New("wrong data")
@@ -56,4 +66,19 @@ func (serv *Service) GetAccount(id string) (account models.Account, err error) {
 		return account, errors.New("error getting account")
 	}
 	return account, nil
+}
+
+func (serv *Service) IsUserRegistered(identifier models.Credentials) (rsp bool, err error) {
+
+	account, _ := serv.Repository.GetAccount(identifier.Email)
+	if account.ID != "" {
+		return true, errors.New("This email has an account already")
+	}
+
+	account, _ = serv.Repository.GetAccount(identifier.Nickname)
+	if account.ID != "" {
+		return true, errors.New("Nickname already taken")
+	}
+
+	return false, nil
 }

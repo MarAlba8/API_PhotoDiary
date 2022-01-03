@@ -29,16 +29,22 @@ func NewGinHandler(usecase service.UseCase) *gin.Engine {
 func (h *GinHandler) MainHandler(c *gin.Context) {
 	accounts, err := h.Usecase.GetAll()
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error getting data"})
+		c.IndentedJSON(
+			http.StatusInternalServerError,
+			gin.H{"message": "Error getting data"})
 	}
-	c.IndentedJSON(http.StatusOK, accounts)
+	c.IndentedJSON(
+		http.StatusOK,
+		accounts)
 }
 
 func (h *GinHandler) ProfileHandler(c *gin.Context) {
 	id := c.Param("id")
 	account, err := h.Usecase.GetAccount(id)
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error getting data"})
+		c.IndentedJSON(
+			http.StatusInternalServerError,
+			gin.H{"message": "Error getting data"})
 	}
 	c.IndentedJSON(http.StatusOK, account)
 }
@@ -46,43 +52,60 @@ func (h *GinHandler) ProfileHandler(c *gin.Context) {
 func (h *GinHandler) LoginHandler(c *gin.Context) {
 	var account models.Account
 	if err := c.BindJSON(&account); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Incorrect credentials"})
+		c.IndentedJSON(
+			http.StatusBadRequest,
+			gin.H{"message": "Incorrect credentials"})
 		return
 	}
 	err := h.Usecase.Login(account)
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Wrong password or nickname"})
+		c.IndentedJSON(
+			http.StatusInternalServerError,
+			gin.H{"message": "Wrong password or nickname"})
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{"message": "User logged successfully"})
+	c.IndentedJSON(
+		http.StatusOK,
+		gin.H{"message": "User logged successfully"})
 }
 
 func (h *GinHandler) RegisterHandler(c *gin.Context) {
-	var account models.Account
-	if err := c.BindJSON(&account); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Error reading data"})
+	var userData models.Credentials
+
+	if err := c.BindJSON(&userData); err != nil {
+		c.IndentedJSON(
+			http.StatusBadRequest,
+			gin.H{"message": "Error reading data"})
 		return
 	}
 
-	err := h.Usecase.Register(account)
+	err := h.Usecase.Register(userData)
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, err.Error())
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{"message": "User registered successfully"})
+	c.IndentedJSON(
+		http.StatusOK,
+		gin.H{"message": "User registered successfully"})
 }
 
 func (h *GinHandler) UpdateAccountHandler(c *gin.Context) {
-	var newData models.Account
+	var newData models.UpdateCredentials
 	if err := c.BindJSON(&newData); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Wrong data"})
+		c.IndentedJSON(
+			http.StatusBadRequest,
+			gin.H{"message": "Wrong data"})
 		return
 	}
 
 	err := h.Usecase.Update(newData)
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Error while saving data"})
+		c.IndentedJSON(
+			http.StatusInternalServerError,
+			gin.H{"message": "Error while saving data"})
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{"message": "Account updated"})
+	c.IndentedJSON(
+		http.StatusOK,
+		gin.H{"message": "Account updated"})
 }

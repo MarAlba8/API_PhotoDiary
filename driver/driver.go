@@ -25,3 +25,7 @@ func InitDatabase() *sql.DB {
 	}
 	return db
 }
+
+func CloseDatabase(connection *sql.DB) {
+	connection.Close()
+}
