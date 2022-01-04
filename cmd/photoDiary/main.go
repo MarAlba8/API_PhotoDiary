@@ -1,9 +1,9 @@
 package main
 
 import (
-	"PhotoDiary/Repository"
 	"PhotoDiary/api"
 	"PhotoDiary/driver"
+	"PhotoDiary/repository"
 	"PhotoDiary/service"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
@@ -11,7 +11,7 @@ import (
 
 func main() {
 	db := driver.InitDatabase()
-	repo := Repository.LoadDB(db)
+	repo := repository.LoadDB(db)
 	srv := service.LoadService(repo)
 	r := api.NewGinHandler(srv)
 	defer driver.CloseDatabase(db)
