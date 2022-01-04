@@ -3,6 +3,9 @@ package service
 import (
 	"PhotoDiary/models"
 	"errors"
+	jwt "github.com/dgrijalva/jwt-go"
+	"golang.org/x/crypto/bcrypt"
+	"time"
 )
 
 type Service struct {
@@ -26,6 +29,12 @@ func (serv *Service) Register(userData models.Credentials) (err error) {
 		return err
 	}
 
+	hashPassword, err := GenerateHashPassword(userData.Password)
+	if err != nil {
+		return err
+	}
+
+	userData.Password = hashPassword
 	err = serv.Repository.Insert(userData)
 	if err != nil {
 		return err
@@ -33,19 +42,33 @@ func (serv *Service) Register(userData models.Credentials) (err error) {
 	return nil
 }
 
-func (serv *Service) Login(account models.Account) (err error) {
-	savedAccount, err := serv.Repository.GetAccount(account.Nickname)
+func (serv *Service) Login(inputCredentials models.LoginCredentials) (string, error) {
+	savedAccount, err := serv.Repository.GetAccount(inputCredentials.Identifier)
 	if err != nil {
-		return errors.New("wrong Nickname")
+		return "", errors.New("wrong nickname or email")
 	}
-	if savedAccount.Password == account.Password {
-		return nil
+
+	err = bcrypt.CompareHashAndPassword(
+		[]byte(savedAccount.Password),
+		[]byte(inputCredentials.Password))
+	if err != nil {
+		return "", errors.New("wrong Password")
 	}
-	return errors.New("wrong Password")
+
+	token, err := GenerateToken(inputCredentials.Identifier)
+	if err != nil {
+		return "", errors.New("failed to create token with error: " + err.Error())
+	}
+	return token, nil
 }
 
-func (serv *Service) Update(account models.UpdateCredentials) (err error) {
-	err = serv.Repository.Update(account)
+func (serv *Service) Update(identifier string, account models.CredentialsToUpdate) (err error) {
+	hashPassword, err := GenerateHashPassword(account.Password)
+	if err != nil {
+		return err
+	}
+	account.Password = hashPassword
+	err = serv.Repository.Update(identifier, account)
 	if err != nil {
 		return errors.New("wrong data")
 	}
@@ -60,8 +83,8 @@ func (serv *Service) GetAll() (accounts []models.Account, err error) {
 	return accounts, nil
 }
 
-func (serv *Service) GetAccount(id string) (account models.Account, err error) {
-	account, err = serv.Repository.GetAccount(id)
+func (serv *Service) GetAccount(identifier string) (account models.Account, err error) {
+	account, err = serv.Repository.GetAccount(identifier)
 	if err != nil {
 		return account, errors.New("error getting account")
 	}
@@ -81,4 +104,26 @@ func (serv *Service) IsUserRegistered(identifier models.Credentials) (rsp bool, 
 	}
 
 	return false, nil
+}
+
+func GenerateHashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func GenerateToken(identifier string) (string, error) {
+	token := jwt.New(jwt.GetSigningMethod("HS256"))
+
+	now := time.Now().Local()
+	token.Claims = jwt.MapClaims{
+		"authorized": true,
+		"identifier": identifier,
+		"exp":        now.Add(time.Hour * time.Duration(1)).Unix(),
+	}
+	//var jwtKey = []byte("my_secret_key")
+	tokenString, err := token.SignedString([]byte("my_secret_key"))
+	if err != nil {
+		return "", err
+	}
+	return tokenString, nil
 }

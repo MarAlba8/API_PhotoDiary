@@ -16,9 +16,14 @@ type Credentials struct {
 	Email    string `json:"email"`
 }
 
-type UpdateCredentials struct {
+type CredentialsToUpdate struct {
 	ID             string `json:"id"`
 	Username       string `json:"username"`
 	Password       string `json:"password"`
 	ProfilePicture string `json:"profilepicture"`
+}
+
+type LoginCredentials struct {
+	Identifier string `json:"identifier"`
+	Password   string `json:"password"`
 }
