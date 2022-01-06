@@ -1,4 +1,5 @@
 .idea/
 PhotoDiary.exe
+cmd/photoDiary/go_build_PhotoDiary_cmd_photoDiary.exe
 go_build_PhotoDiary_main_go.exe
 questions.txt
